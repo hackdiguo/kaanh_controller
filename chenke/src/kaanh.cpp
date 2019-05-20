@@ -965,55 +965,28 @@ namespace kaanh
 			static double begin_pjs[6];
 			static double step_pjs[6];
 			
-			if ((1 <= target.count) && (target.count <= time / 2))
+			// 获取当前起始点位置 //
+			if (target.count == 1)
 			{
-				// 获取当前起始点位置 //
-				if (target.count == 1)
-				{
-					for (Size i = 0; i < param.joint_active_vec.size(); ++i)
-					{
-						begin_pjs[i] = target.model->motionPool()[i].mp();
-						step_pjs[i] = target.model->motionPool()[i].mp();
-					}
-				}
 				for (Size i = 0; i < param.joint_active_vec.size(); ++i)
 				{
-					step_pjs[i] = begin_pjs[i] + param.j[i] * (1 - std::cos(2 * PI*target.count / time)) / 2;
+					begin_pjs[i] = target.model->motionPool()[i].mp();
+					step_pjs[i] = target.model->motionPool()[i].mp();
+				}
+			}
+			if ((int)floor(2.0*target.count / time) % 2 == 0)
+			{
+				for (Size i = 0; i < param.joint_active_vec.size(); ++i)
+				{
+					step_pjs[i] = begin_pjs[i] + param.j[i] * (1 - std::cos(4 * PI*target.count / time)) / 2;
 					target.model->motionPool().at(i).setMp(step_pjs[i]);
 				}
 			}
-			else if ((time / 2 < target.count) && (target.count <= totaltime - time/2))
+			else
 			{
-				// 获取当前起始点位置 //
-				if (target.count == time / 2+1)
-				{
-					for (Size i = 0; i < param.joint_active_vec.size(); ++i)
-					{
-						begin_pjs[i] = target.model->motionPool()[i].mp();
-						step_pjs[i] = target.model->motionPool()[i].mp();
-					}
-				}
 				for (Size i = 0; i < param.joint_active_vec.size(); ++i)
 				{
-					step_pjs[i] = begin_pjs[i] - 2*param.j[i] * (1 - std::cos(2 * PI*(target.count-time/2) / time)) / 2;
-					target.model->motionPool().at(i).setMp(step_pjs[i]);
-				}
-
-			}
-			else if ((totaltime - time / 2 < target.count) && (target.count <= totaltime))
-			{
-				// 获取当前起始点位置 //
-				if (target.count == totaltime - time / 2 + 1)
-				{
-					for (Size i = 0; i < param.joint_active_vec.size(); ++i)
-					{
-						begin_pjs[i] = target.model->motionPool()[i].mp();
-						step_pjs[i] = target.model->motionPool()[i].mp();
-					}
-				}
-				for (Size i = 0; i < param.joint_active_vec.size(); ++i)
-				{
-					step_pjs[i] = begin_pjs[i] - param.j[i] * (1 - std::cos(2 * PI*(target.count - totaltime + time / 2) / time)) / 2;
+					step_pjs[i] = begin_pjs[i] - param.j[i] * (1 - std::cos(4 * PI*target.count / time)) / 2;
 					target.model->motionPool().at(i).setMp(step_pjs[i]);
 				}
 			}
