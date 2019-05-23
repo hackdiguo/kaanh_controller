@@ -561,16 +561,6 @@ namespace kaanh
 			"</Command>");
 	}
 	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
 	// 末端圆弧轨迹
 	struct moveC_REParam
 	{
@@ -825,6 +815,187 @@ namespace kaanh
 	}
 
 
+	//末端直线梯形轨迹规划
+	struct moveL_TParam
+	{
+		double dpm_pq[3];
+		double vel, acc, dec;
+	};
+	auto moveL_T::prepairNrt(const std::map<std::string, std::string> &params, PlanTarget &target)->void
+	{
+		auto c = target.controller;
+		moveL_TParam param;
+
+		for (auto cmd_param : params)
+		{
+
+			if (cmd_param.first == "dx")
+			{
+				param.dpm_pq[0] = std::stod(cmd_param.second);
+			}
+			else if (cmd_param.first == "dy")
+			{
+				param.dpm_pq[1] = std::stod(cmd_param.second);
+			}
+			else if (cmd_param.first == "dz")
+			{
+				param.dpm_pq[2] = std::stod(cmd_param.second);
+			}
+			else if (cmd_param.first == "vel")
+			{
+				param.vel = std::stod(cmd_param.second);
+			}
+			else if (cmd_param.first == "acc")
+			{
+				param.acc = std::stod(cmd_param.second);
+			}
+			else if (cmd_param.first == "dec")
+			{
+				param.dec = std::stod(cmd_param.second);
+			}
+		}
+
+
+
+		target.param = param;
+
+		target.option |=
+			//				Plan::USE_TARGET_POS |
+			Plan::USE_VEL_OFFSET |
+#ifdef WIN32
+			Plan::NOT_CHECK_POS_MIN |
+			Plan::NOT_CHECK_POS_MAX |
+			Plan::NOT_CHECK_POS_CONTINUOUS |
+			Plan::NOT_CHECK_POS_CONTINUOUS_AT_START |
+			Plan::NOT_CHECK_POS_CONTINUOUS_SECOND_ORDER |
+			Plan::NOT_CHECK_POS_CONTINUOUS_SECOND_ORDER_AT_START |
+			Plan::NOT_CHECK_POS_FOLLOWING_ERROR |
+#endif
+			Plan::NOT_CHECK_VEL_MIN |
+			Plan::NOT_CHECK_VEL_MAX |
+			Plan::NOT_CHECK_VEL_CONTINUOUS |
+			Plan::NOT_CHECK_VEL_CONTINUOUS_AT_START |
+			Plan::NOT_CHECK_VEL_FOLLOWING_ERROR;
+
+	}
+	static double begin_pq[7];
+	auto moveL_T::executeRT(PlanTarget &target)->int
+	{
+		auto &ee = target.model->generalMotionPool().at(0);//表示机器人
+		auto &param = std::any_cast<moveL_TParam&>(target.param);
+		auto controller = target.controller;
+
+		if (target.count == 1)
+		{
+			ee.getMpq(begin_pq);
+		}
+		double pq2[7];
+		pq2[3] = begin_pq[3];
+		pq2[4] = begin_pq[4];
+		pq2[5] = begin_pq[5];
+		pq2[6] = begin_pq[6];
+
+		aris::Size total_count{ 1 };
+		for (Size i = 0; i < 3; ++i)
+		{
+			double p, v, a;
+			aris::Size t_count;
+			aris::plan::moveAbsolute(target.count, begin_pq[i], begin_pq[i] + param.dpm_pq[i], param.vel / 1000, param.acc / 1000 / 1000, param.dec / 1000 / 1000, p, v, a, t_count);
+			pq2[i] = p;
+			total_count = std::max(total_count, t_count);
+
+		}
+		ee.setMpq(pq2);
+
+		//controller与模型同步，保证3D仿真模型同步显示
+		if (!target.model->solverPool().at(0).kinPos())return -1;// at(0)反解， at(1)正解
+
+
+		return total_count - target.count;
+	}
+	auto moveL_T::collectNrt(PlanTarget &target)->void {}
+	moveL_T::moveL_T(const std::string &name) :Plan(name)
+	{
+		command().loadXmlStr(
+			"<Command name=\"moveL_T\">"
+			"	<GroupParam>"
+			"		<Param name=\"dx\" default=\"0.1\"/>"
+			"		<Param name=\"dy\" default=\"0.1\"/>"
+			"		<Param name=\"dz\" default=\"0.1\"/>"
+			"		<Param name=\"vel\" default=\"0.5\"/>"
+			"		<Param name=\"acc\" default=\"1\"/>"
+			"		<Param name=\"dec\" default=\"1\"/>"
+			"		<UniqueParam default=\"check_none\">"
+			"			<Param name=\"check_all\"/>"
+			"			<Param name=\"check_none\"/>"
+			"			<GroupParam>"
+			"				<UniqueParam default=\"check_pos\">"
+			"					<Param name=\"check_pos\"/>"
+			"					<Param name=\"not_check_pos\"/>"
+			"					<GroupParam>"
+			"						<UniqueParam default=\"check_pos_max\">"
+			"							<Param name=\"check_pos_max\"/>"
+			"							<Param name=\"not_check_pos_max\"/>"
+			"						</UniqueParam>"
+			"						<UniqueParam default=\"check_pos_min\">"
+			"							<Param name=\"check_pos_min\"/>"
+			"							<Param name=\"not_check_pos_min\"/>"
+			"						</UniqueParam>"
+			"						<UniqueParam default=\"check_pos_continuous\">"
+			"							<Param name=\"check_pos_continuous\"/>"
+			"							<Param name=\"not_check_pos_continuous\"/>"
+			"						</UniqueParam>"
+			"						<UniqueParam default=\"check_pos_continuous_at_start\">"
+			"							<Param name=\"check_pos_continuous_at_start\"/>"
+			"							<Param name=\"not_check_pos_continuous_at_start\"/>"
+			"						</UniqueParam>"
+			"						<UniqueParam default=\"check_pos_continuous_second_order\">"
+			"							<Param name=\"check_pos_continuous_second_order\"/>"
+			"							<Param name=\"not_check_pos_continuous_second_order\"/>"
+			"						</UniqueParam>"
+			"						<UniqueParam default=\"check_pos_continuous_second_order_at_start\">"
+			"							<Param name=\"check_pos_continuous_second_order_at_start\"/>"
+			"							<Param name=\"not_check_pos_continuous_second_order_at_start\"/>"
+			"						</UniqueParam>"
+			"						<UniqueParam default=\"check_pos_following_error\">"
+			"							<Param name=\"check_pos_following_error\"/>"
+			"							<Param name=\"not_check_pos_following_error\"/>"
+			"						</UniqueParam>"
+			"					</GroupParam>"
+			"				</UniqueParam>"
+			"				<UniqueParam default=\"check_vel\">"
+			"					<Param name=\"check_vel\"/>"
+			"					<Param name=\"not_check_vel\"/>"
+			"					<GroupParam>"
+			"						<UniqueParam default=\"check_vel_max\">"
+			"							<Param name=\"check_vel_max\"/>"
+			"							<Param name=\"not_check_vel_max\"/>"
+			"						</UniqueParam>"
+			"						<UniqueParam default=\"check_vel_min\">"
+			"							<Param name=\"check_vel_min\"/>"
+			"							<Param name=\"not_check_vel_min\"/>"
+			"						</UniqueParam>"
+			"						<UniqueParam default=\"check_vel_continuous\">"
+			"							<Param name=\"check_vel_continuous\"/>"
+			"							<Param name=\"not_check_vel_continuous\"/>"
+			"						</UniqueParam>"
+			"						<UniqueParam default=\"check_vel_continuous_at_start\">"
+			"							<Param name=\"check_vel_continuous_at_start\"/>"
+			"							<Param name=\"not_check_vel_continuous_at_start\"/>"
+			"						</UniqueParam>"
+			"						<UniqueParam default=\"check_vel_following_error\">"
+			"							<Param name=\"check_vel_following_error\"/>"
+			"							<Param name=\"not_check_vel_following_error\"/>"
+			"						</UniqueParam>"
+			"					</GroupParam>"
+			"				</UniqueParam>"
+			"			</GroupParam>"
+			"		</UniqueParam>"
+			"	</GroupParam>"
+			"</Command>");
+	}
+
+
 	// 单关节正弦往复轨迹 //
 	struct moveJ_CosParam
 	{
@@ -965,28 +1136,55 @@ namespace kaanh
 			static double begin_pjs[6];
 			static double step_pjs[6];
 			
-			// 获取当前起始点位置 //
-			if (target.count == 1)
+			if ((1 <= target.count) && (target.count <= time / 2))
 			{
-				for (Size i = 0; i < param.joint_active_vec.size(); ++i)
+				// 获取当前起始点位置 //
+				if (target.count == 1)
 				{
-					begin_pjs[i] = target.model->motionPool()[i].mp();
-					step_pjs[i] = target.model->motionPool()[i].mp();
+					for (Size i = 0; i < param.joint_active_vec.size(); ++i)
+					{
+						begin_pjs[i] = target.model->motionPool()[i].mp();
+						step_pjs[i] = target.model->motionPool()[i].mp();
+					}
 				}
-			}
-			if ((int)floor(2.0*target.count / time) % 2 == 0)
-			{
 				for (Size i = 0; i < param.joint_active_vec.size(); ++i)
 				{
-					step_pjs[i] = begin_pjs[i] + param.j[i] * (1 - std::cos(4 * PI*target.count / time)) / 2;
+					step_pjs[i] = begin_pjs[i] + param.j[i] * (1 - std::cos(2 * PI*target.count / time)) / 2;
 					target.model->motionPool().at(i).setMp(step_pjs[i]);
 				}
 			}
-			else
+			else if ((time / 2 < target.count) && (target.count <= totaltime - time/2))
 			{
+				// 获取当前起始点位置 //
+				if (target.count == time / 2+1)
+				{
+					for (Size i = 0; i < param.joint_active_vec.size(); ++i)
+					{
+						begin_pjs[i] = target.model->motionPool()[i].mp();
+						step_pjs[i] = target.model->motionPool()[i].mp();
+					}
+				}
 				for (Size i = 0; i < param.joint_active_vec.size(); ++i)
 				{
-					step_pjs[i] = begin_pjs[i] - param.j[i] * (1 - std::cos(4 * PI*target.count / time)) / 2;
+					step_pjs[i] = begin_pjs[i] - 2*param.j[i] * (1 - std::cos(2 * PI*(target.count-time/2) / time)) / 2;
+					target.model->motionPool().at(i).setMp(step_pjs[i]);
+				}
+
+			}
+			else if ((totaltime - time / 2 < target.count) && (target.count <= totaltime))
+			{
+				// 获取当前起始点位置 //
+				if (target.count == totaltime - time / 2 + 1)
+				{
+					for (Size i = 0; i < param.joint_active_vec.size(); ++i)
+					{
+						begin_pjs[i] = target.model->motionPool()[i].mp();
+						step_pjs[i] = target.model->motionPool()[i].mp();
+					}
+				}
+				for (Size i = 0; i < param.joint_active_vec.size(); ++i)
+				{
+					step_pjs[i] = begin_pjs[i] - param.j[i] * (1 - std::cos(2 * PI*(target.count - totaltime + time / 2) / time)) / 2;
 					target.model->motionPool().at(i).setMp(step_pjs[i]);
 				}
 			}
@@ -1488,283 +1686,6 @@ namespace kaanh
 	}
 	
 
-	// 梯形轨迹2测试--输入单个关节，角度位置；关节按照梯形速度轨迹执行；速度前馈//
-	struct MoveTTTParam
-	{
-		std::vector<double> axis_vel_vec;
-		std::vector<double> axis_acc_vec;
-		std::vector<double> axis_dec_vec;
-		std::vector<double> begin_axis_vel_vec;
-		std::vector<double> begin_axis_acc_vec;
-		std::vector<double> begin_axis_dec_vec;
-		std::vector<double> joint_pos_vec, begin_joint_pos_vec;
-		std::vector<bool> joint_active_vec;
-	};
-	auto MoveTTT::prepairNrt(const std::map<std::string, std::string> &params, PlanTarget &target)->void
-		{
-			auto c = target.controller;
-			MoveTTTParam param;
-
-			for (auto cmd_param : params)
-			{
-				if (cmd_param.first == "all")
-				{
-					param.joint_active_vec.resize(c->motionPool().size(), true);
-				}
-				else if (cmd_param.first == "none")
-				{
-					param.joint_active_vec.resize(c->motionPool().size(), false);
-				}
-				else if (cmd_param.first == "motion_id")
-				{
-					param.joint_active_vec.resize(c->motionPool().size(), false);
-					param.joint_active_vec.at(std::stoi(cmd_param.second)) = true;
-				}
-				else if (cmd_param.first == "physical_id")
-				{
-					param.joint_active_vec.resize(c->motionPool().size(), false);
-					param.joint_active_vec.at(c->motionAtPhy(std::stoi(cmd_param.second)).phyId()) = true;
-				}
-				else if (cmd_param.first == "slave_id")
-				{
-					param.joint_active_vec.resize(c->motionPool().size(), false);
-					param.joint_active_vec.at(c->motionAtPhy(std::stoi(cmd_param.second)).slaId()) = true;
-				}
-				else if (cmd_param.first == "pos")
-				{
-					aris::core::Matrix mat = target.model->calculator().calculateExpression(cmd_param.second);
-					if (mat.size() == 1)param.joint_pos_vec.resize(c->motionPool().size(), mat.toDouble());
-					else
-					{
-						param.joint_pos_vec.resize(mat.size());
-						std::copy(mat.begin(), mat.end(), param.joint_pos_vec.begin());
-					}
-				}
-				else if (cmd_param.first == "vel")
-				{
-					auto v = target.model->calculator().calculateExpression(cmd_param.second);
-					if (v.size() == 1)
-					{
-						param.axis_vel_vec.resize(c->motionPool().size(), v.toDouble());
-					}
-					else if (v.size() == c->motionPool().size())
-					{
-						param.axis_vel_vec.assign(v.begin(), v.end());
-					}
-					else
-					{
-						throw std::runtime_error(__FILE__ + std::to_string(__LINE__) + " failed");
-					}
-
-					for (Size i = 0; i < c->motionPool().size(); ++i)
-					{
-						if (param.axis_vel_vec[i] > 1.0)
-						{
-							param.axis_vel_vec[i] = 1.0;
-						}
-						if (param.axis_vel_vec[i] < 0.0)
-						{
-							param.axis_vel_vec[i] = 0.0;
-						}
-						param.axis_vel_vec[i] = param.axis_vel_vec[i] * c->motionPool()[i].maxVel();
-					}
-				}
-				else if (cmd_param.first == "acc")
-				{
-					auto a = target.model->calculator().calculateExpression(cmd_param.second);
-					if (a.size() == 1)
-					{
-						param.axis_acc_vec.resize(c->motionPool().size(), a.toDouble());
-					}
-					else if (a.size() == c->motionPool().size())
-					{
-						param.axis_acc_vec.assign(a.begin(), a.end());
-					}
-					else
-					{
-						throw std::runtime_error(__FILE__ + std::to_string(__LINE__) + " failed");
-					}
-
-					for (Size i = 0; i < c->motionPool().size(); ++i)
-					{
-						if (param.axis_acc_vec[i] > 1.0)
-						{
-							param.axis_acc_vec[i] = 1.0;
-						}
-						if (param.axis_acc_vec[i] < 0.0)
-						{
-							param.axis_acc_vec[i] = 0.0;
-						}
-						param.axis_acc_vec[i] = param.axis_acc_vec[i] * c->motionPool()[i].maxAcc();
-					}
-				}
-				else if (cmd_param.first == "dec")
-				{
-					auto d = target.model->calculator().calculateExpression(cmd_param.second);
-					if (d.size() == 1)
-					{
-						param.axis_dec_vec.resize(c->motionPool().size(), d.toDouble());
-					}
-					else if (d.size() == c->motionPool().size())
-					{
-						param.axis_dec_vec.assign(d.begin(), d.end());
-					}
-					else
-					{
-						throw std::runtime_error(__FILE__ + std::to_string(__LINE__) + " failed");
-					}
-
-					for (Size i = 0; i < c->motionPool().size(); ++i)
-					{
-						if (param.axis_dec_vec[i] > 1.0)
-						{
-							param.axis_dec_vec[i] = 1.0;
-						}
-						if (param.axis_dec_vec[i] < 0.0)
-						{
-							param.axis_dec_vec[i] = 0.0;
-						}
-						param.axis_dec_vec[i] = param.axis_dec_vec[i] * c->motionPool()[i].minAcc();
-					}
-				}
-			}
-
-			param.begin_joint_pos_vec.resize(c->motionPool().size(), 0.0);
-			param.begin_axis_vel_vec.resize(c->motionPool().size(), 0.0);
-			param.begin_axis_acc_vec.resize(c->motionPool().size(), 0.0);
-			param.begin_axis_dec_vec.resize(c->motionPool().size(), 0.0);
-
-
-			target.param = param;
-
-			target.option |=
-				Plan::USE_TARGET_POS |
-#ifdef WIN32
-				Plan::NOT_CHECK_POS_MIN |
-				Plan::NOT_CHECK_POS_MAX |
-				Plan::NOT_CHECK_POS_CONTINUOUS |
-				Plan::NOT_CHECK_POS_CONTINUOUS_AT_START |
-				Plan::NOT_CHECK_POS_CONTINUOUS_SECOND_ORDER |
-				Plan::NOT_CHECK_POS_CONTINUOUS_SECOND_ORDER_AT_START |
-				Plan::NOT_CHECK_POS_FOLLOWING_ERROR |
-#endif
-				Plan::NOT_CHECK_VEL_MIN |
-				Plan::NOT_CHECK_VEL_MAX |
-				Plan::NOT_CHECK_VEL_CONTINUOUS |
-				Plan::NOT_CHECK_VEL_CONTINUOUS_AT_START |
-				Plan::NOT_CHECK_VEL_FOLLOWING_ERROR;
-
-		}
-	auto MoveTTT::executeRT(PlanTarget &target)->int
-		{
-			auto &param = std::any_cast<MoveTTTParam&>(target.param);
-			auto controller = target.controller;
-
-			if (target.count == 1)
-			{
-				for (Size i = 0; i < param.joint_active_vec.size(); ++i)
-				{
-					if (param.joint_active_vec[i])
-					{
-						//param.begin_joint_pos_vec[i] = controller->motionPool()[i].actualPos();
-						param.begin_joint_pos_vec[i] = target.model->motionPool().at(i).mp();
-					}
-				}
-			}
-
-			aris::Size total_count{ 1 };
-			for (Size i = 0; i < param.joint_active_vec.size(); ++i)
-			{
-				if (param.joint_active_vec[i])
-				{
-					double p, v, a;
-					aris::Size t_count;
-					auto result = aris::plan::moveAbsolute2(param.begin_joint_pos_vec[i], param.begin_axis_vel_vec[i], param.begin_axis_acc_vec[i], param.joint_pos_vec[i], 0.0, 0.0, param.axis_vel_vec[i], param.axis_acc_vec[i], param.axis_acc_vec[i], 1e-3, 1e-10, p, v, a, t_count);
-					//controller->motionAtAbs(i).setTargetPos(p);
-					target.model->motionPool().at(i).setMp(p);
-                    total_count = result;
-                    //total_count = std::max(total_count, t_count);
-
-					param.begin_joint_pos_vec[i] = p;
-					param.begin_axis_vel_vec[i] = v;
-					param.begin_axis_acc_vec[i] = a;
-				}
-			}
-
-            if (!target.model->solverPool().at(1).kinPos())return -1;
-			   
-			// 打印电流 //
-			auto &cout = controller->mout();
-            if (target.count % 1000 == 0)
-			{
-				for (Size i = 0; i < 6; i++)
-				{
-                    if (param.joint_active_vec[i])
-                    {
-                        cout << "pos" << i + 1 << ":" << controller->motionAtAbs(i).actualPos() << "  ";
-                        cout << "vel" << i + 1 << ":" << controller->motionAtAbs(i).actualVel() << "  ";
-                        cout << "cur" << i + 1 << ":" << controller->motionAtAbs(i).actualCur() << "  ";
-                    }
-				}
-				cout << std::endl;
-			}
-
-			auto &fwd = dynamic_cast<aris::dynamic::ForwardKinematicSolver&>(target.model->solverPool()[1]);
-			fwd.cptJacobi();
-
-			auto &lout = controller->lout();
-			for (Size i = 0; i < 36; ++i)
-			{
-				lout <<fwd.Jf()[i] << ",";
-			}
-			for (Size i = 0; i < param.joint_active_vec.size(); ++i)
-			{
-				if (param.joint_active_vec[i])
-				{
-					lout << param.begin_joint_pos_vec[i] << ",";
-					lout << param.begin_axis_vel_vec[i] << ",";
-					lout << param.begin_axis_acc_vec[i] << ",";
-					lout << param.joint_pos_vec[i] << ",";
-					lout << param.axis_vel_vec[i] << ",";
-					lout << param.axis_acc_vec[i] << ",";
-					lout << std::endl;
-				}
-			}
-
-			// log 电流 //
-            //auto &lout = controller->lout();
-            //for (Size i = 0; i < 6; i++)
-            //{
-                //lout << controller->motionAtAbs(i).targetPos() << ",";
-                //lout << controller->motionAtAbs(i).actualPos() << ",";
-                //lout << controller->motionAtAbs(i).actualVel() << ",";
-                //lout << controller->motionAtAbs(i).actualCur() << ",";
-            //}
-            //lout << std::endl;
-
-            //return total_count - target.count;
-            return total_count;
-		}
-	auto MoveTTT::collectNrt(PlanTarget &target)->void {}
-	MoveTTT::MoveTTT(const std::string &name) :Plan(name)
-	{
-		command().loadXmlStr(
-            "<Command name=\"moveTTT\">"
-			"	<GroupParam>"
-			"		<UniqueParam default=\"all\">"
-			"			<Param name=\"all\" abbreviation=\"a\"/>"
-			"			<Param name=\"motion_id\" abbreviation=\"m\" default=\"0\"/>"
-			"			<Param name=\"physical_id\" abbreviation=\"p\" default=\"0\"/>"
-			"			<Param name=\"slave_id\" abbreviation=\"s\" default=\"0\"/>"
-			"		</UniqueParam>"
-			"		<Param name=\"pos\" default=\"0\"/>"
-            "		<Param name=\"vel\" default=\"0.04\"/>"
-            "		<Param name=\"acc\" default=\"0.1\"/>"
-            "		<Param name=\"dec\" default=\"0.1\"/>"
-			"	</GroupParam>"
-			"</Command>");
-	}
-
 
 	// 多关节混合插值梯形轨迹；速度前馈 //
 	struct moveJM_TParam
@@ -2256,10 +2177,10 @@ namespace kaanh
 		plan_root->planPool().add<kaanh::moveC_CE>();
 		plan_root->planPool().add<kaanh::moveC_RE>();
 		plan_root->planPool().add<kaanh::moveL_Cos>();
+		plan_root->planPool().add<kaanh::moveL_T>();
 		plan_root->planPool().add<kaanh::moveJ_Cos>();
 		plan_root->planPool().add<kaanh::moveJ_CosN>();
 		plan_root->planPool().add<kaanh::moveJ_T>();
-		plan_root->planPool().add<kaanh::MoveTTT>();
 		plan_root->planPool().add<kaanh::moveJM_T>();
 		plan_root->planPool().add<kaanh::moveJM_TQ>();
 

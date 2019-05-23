@@ -44,9 +44,6 @@ namespace kaanh
 	};
 
 
-
-
-
 	class moveC_CE : public aris::plan::Plan
 	{
 	public:
@@ -84,6 +81,19 @@ namespace kaanh
 		ARIS_REGISTER_TYPE(moveL_Cos);
 	};
 
+	class moveL_T : public aris::plan::Plan
+	{
+	public:
+		auto virtual prepairNrt(const std::map<std::string, std::string> &params, aris::plan::PlanTarget &target)->void;
+		auto virtual executeRT(aris::plan::PlanTarget &target)->int;
+		auto virtual collectNrt(aris::plan::PlanTarget &target)->void;
+
+		explicit moveL_T(const std::string &name = "moveL_T_plan");
+		ARIS_REGISTER_TYPE(moveL_T);
+	};
+
+
+
 	class moveJ_Cos : public aris::plan::Plan
 	{
 	public:
@@ -117,16 +127,6 @@ namespace kaanh
 		ARIS_REGISTER_TYPE(moveJ_T);
 	};
 
-	class MoveTTT : public aris::plan::Plan
-	{
-	public:
-		auto virtual prepairNrt(const std::map<std::string, std::string> &params, aris::plan::PlanTarget &target)->void;
-		auto virtual executeRT(aris::plan::PlanTarget &target)->int;
-		auto virtual collectNrt(aris::plan::PlanTarget &target)->void;
-
-		explicit MoveTTT(const std::string &name = "MoveTTT_plan");
-		ARIS_REGISTER_TYPE(MoveTTT);
-	};
 
 	class moveJM_T : public aris::plan::Plan
 	{
